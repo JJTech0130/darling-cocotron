@@ -12,6 +12,12 @@ set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} \
 	-mmacosx-version-min=10.10"
 )
 
+add_compile_definitions(
+	# tells the objc API headers to use the generically-typed function declarations for `objc_msgSend` and friends
+	# (Apple really wants people to cast the functions before using them)
+	OBJC_OLD_DISPATCH_PROTOTYPES=1
+)
+
 set(OpenGL_GL_PREFERENCE "GLVND")
 
 find_package(X11 REQUIRED)
@@ -42,23 +48,8 @@ pkg_check_modules(PC_CAIRO cairo)
 pkg_check_modules(PC_FONTCONFIG fontconfig)
 
 include_directories(
-	${CMAKE_SOURCE_DIR}/src/external/foundation/include
-	${CMAKE_SOURCE_DIR}/src/external/foundation/include/Foundation
-	${CMAKE_SOURCE_DIR}/src/external/corefoundation
-	${CMAKE_SOURCE_DIR}/src/external/objc4/runtime
-	${CMAKE_SOURCE_DIR}/src/external/libclosure
-	${CMAKE_SOURCE_DIR}/src/external/security/include
-	${CMAKE_SOURCE_DIR}/src/external/cfnetwork/include
-	${CMAKE_SOURCE_DIR}/src/external/cfnetwork/private_include
-	${CMAKE_SOURCE_DIR}/src/launchd/liblaunch
-	${CMAKE_SOURCE_DIR}/src/libmalloc/include
-	${CMAKE_SOURCE_DIR}/src/copyfile
-	${CMAKE_SOURCE_DIR}/src/libc/gen
-	${CMAKE_SOURCE_DIR}/src/frameworks
 	${CMAKE_SOURCE_DIR}/src/external/icu/icuSources/i18n
 	${CMAKE_SOURCE_DIR}/src/external/icu/icuSources/common
-	${CMAKE_SOURCE_DIR}/src/external/libxml2/include
-	${CMAKE_BINARY_DIR}/src/external/libxml2/include
 
 	${CMAKE_CURRENT_SOURCE_DIR}
 	${CMAKE_CURRENT_SOURCE_DIR}/..
@@ -91,6 +82,7 @@ set(AppKit_sources
 	NSComboBoxCell.m
 	NSWindowScripting.m
 	NSGraphicsContext.m
+	NSPageController.m
 	NSPageLayout.m
 	NSTabViewItem.m
 	NSText.m
@@ -189,6 +181,7 @@ set(AppKit_sources
 	NSMutableParagraphStyle.m
 	NSBrowser.m
 	NSToolTipWindow.m
+	NSTitlebarAccessoryViewController.m
 	NSPasteboard.m
 	NSSearchFieldCell.m
 	NSOutlineView.m
@@ -424,6 +417,26 @@ set(AppKit_sources
 
 	NSMovie.m
 	NSMovieView.m
+
+	NSTextInput.m
+	NSInputManager.m
+	NSDynamicNamedColor.m
+	NSCatalogColor.m
+	NSPanGestureRecognizer.m
+	NSPressureConfiguration.m
+	NSPulseGestureRecognizer.m
+	NSStoryboard.m
+	NSTokenAttachment.m
+	NSTouchDevice.m
+	NSTouchDevice.m
+	NSSplitViewController.m
+	NSSplitViewItem.m
+	NSTabViewController.m
+	NSTableViewRowAction.m
+	NSCollectionViewLayoutAttributes.m
+	NSCollectionViewLayoutInvalidationContext.m
+	NSLayoutGuide.m
+	NSPressGestureRecognizer.m
 )
 
 set_source_files_properties(${AppKit_sources} LANGUAGE C)

@@ -84,6 +84,8 @@ const NSNotificationName NSWindowAnimatingNotification =
 const NSNotificationName NSWindowDidAnimateNotification =
         @"NSWindowDidAnimateNotification";
 
+const NSNotificationName NSWindowDidChangeOcclusionStateNotification =
+        @"NSWindowDidChangeOcclusionStateNotification";
 const NSNotificationName NSWindowDidChangeScreenNotification =
         @"NSWindowDidChangeScreenNotification";
 const NSNotificationName NSWindowDidEndSheetNotification =
@@ -1874,9 +1876,17 @@ static BOOL _allowsAutomaticWindowTabbing;
 }
 
 - (void) setViewsNeedDisplay: (BOOL) viewsNeedDisplay {
-    if (!viewsNeedDisplay || _viewsNeedDisplay) {
+    if (viewsNeedDisplay == _viewsNeedDisplay) {
+        // the desired state is already the active one; do nothing
+        return;
+    } else if (!viewsNeedDisplay && _viewsNeedDisplay) {
+        // if we're told we don't need to display, set that
+        // Apple's AppKit leaves the redraw queued, so lets do the same and not cancel the performer
+        _viewsNeedDisplay = viewsNeedDisplay;
         return;
     }
+    // otherwise, `viewsNeedDisplay && !_viewsNeedDisplay`, so let's set up a performer to re-draw us
+
     // NSApplication does a _displayAllWindowsIfNeeded before every event, but
     // there are some things which won't generate an event such as
     // performOnMainThread, so we do the callout here too. There is probably a
@@ -2878,8 +2888,6 @@ static BOOL _allowsAutomaticWindowTabbing;
 
     [self _setSheetOrigin];
     NSRect sheetFrame = [sheet frame];
-    sheetFrame.origin.y = NSMaxY(sheetFrame);
-    sheetFrame.size.height = 0;
 
     sheet->_isVisible = YES;
     [sheet display];

@@ -34,6 +34,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
 static int NSColor_ignoresAlpha = -1;
 
+NSString *const NSSystemColorsDidChangeNotification = @"NSSystemColorsDidChangeNotification";
+
 @interface NSColor (private)
 - (NSString *) catalogName;
 - (NSString *) colorName;
@@ -558,6 +560,29 @@ static int NSColor_ignoresAlpha = -1;
                                     blue: blue
                                    alpha: alpha
                                spaceName: NSDeviceRGBColorSpace];
+}
+
++ (NSColor *) colorWithRed: (CGFloat) red
+                     green: (CGFloat) green
+                      blue: (CGFloat) blue
+                     alpha: (CGFloat) alpha
+{
+    return [NSColor colorWithDeviceRed: red
+                                 green: green
+                                  blue: blue
+                                 alpha: alpha];
+}
+
++ (NSColor *) colorWithSRGBRed: (CGFloat) red
+                         green: (CGFloat) green
+                          blue: (CGFloat) blue
+                         alpha: (CGFloat) alpha
+{
+    return [NSColor_CGColor colorWithRed: red
+                                   green: green
+                                    blue: blue
+                                   alpha: alpha
+                               spaceName: NSNamedColorSpace];
 }
 
 + (NSColor *) colorWithDeviceHue: (CGFloat) hue

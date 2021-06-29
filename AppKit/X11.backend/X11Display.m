@@ -50,6 +50,7 @@
 #import <X11/Xutil.h>
 #import <X11/extensions/XKBrules.h>
 #import <X11/extensions/Xrandr.h>
+#import <X11/keysym.h>
 #import <fcntl.h>
 #import <fontconfig/fontconfig.h>
 #import <stddef.h>
@@ -117,6 +118,17 @@ static void socketCallback(CFSocketRef s, CFSocketCallBackType type,
 #endif
 
         _windowsByID = [NSMutableDictionary new];
+        [self _enableDetectableAutoRepeat];
+
+        XSetLocaleModifiers("");
+        _xim = XOpenIM(_display, NULL, NULL, NULL);
+
+        if (!_xim) {
+            NSLog(@"Failed to open XIM, falling back to im=none\n");
+
+            XSetLocaleModifiers("@im=none");
+            _xim = XOpenIM(_display, NULL, NULL, NULL);
+        }
 
         lastFocusedWindow = nil;
         lastClickTimeStamp = 0.0;
@@ -128,6 +140,8 @@ static void socketCallback(CFSocketRef s, CFSocketCallBackType type,
 - (void) dealloc {
     [_blankCursor release];
     [_defaultCursor release];
+
+    XCloseIM(_xim);
 
     if (_display)
         XCloseDisplay(_display);
@@ -149,6 +163,19 @@ static void socketCallback(CFSocketRef s, CFSocketCallBackType type,
 
 - (Display *) display {
     return _display;
+}
+
+- (void) _enableDetectableAutoRepeat {
+    int major = XkbMajorVersion, minor = XkbMinorVersion;
+    XkbStateRec state;
+
+    if (!XkbLibraryVersion(&major, &minor))
+        return;
+    if (!XkbQueryExtension(_display, NULL, NULL, &major, &minor, NULL))
+        return;
+    
+    Bool supported;
+    XkbSetDetectableAutoRepeat(_display, TRUE, &supported);
 }
 
 - (NSArray *) screens {
@@ -813,9 +840,17 @@ static NSDictionary *modeInfoToDictionary(const XRRModeInfo *mi, int depth) {
                 setObject: window
                    forKey: [NSNumber
                                    numberWithUnsignedLong: (unsigned long) i]];
-    else
+    else {
         [_windowsByID removeObjectForKey: [NSNumber numberWithUnsignedLong:
                                                             (unsigned long) i]];
+
+        // if "lastFocusedWindow" is dying, drop it
+        //
+        // this is an ugly hack because we miss FocusOut events sometimes and
+        // retaining the window causes it to keep popping back up endlessly even after dismissing it
+        if (lastFocusedWindow && [[lastFocusedWindow platformWindow] windowHandle] == i)
+            lastFocusedWindow = nil;
+    }
 }
 
 - (id) windowForID: (XID) i {
@@ -880,35 +915,51 @@ static NSDictionary *modeInfoToDictionary(const XRRModeInfo *mi, int depth) {
 - (void) postXEvent: (XEvent *) ev {
     id event = nil;
     NSEventType type;
-    id window = [self windowForID: ev->xany.window];
+    X11Window* window = (X11Window*) [self windowForID: ev->xany.window];
 
     id delegate = [window delegate];
 
     switch (ev->type) {
     case KeyPress:
     case KeyRelease:;
-        NSEventModifierFlags modifierFlags =
-                [self modifierFlagsForState: ev->xkey.state];
-        char buf[4] = {0};
 
-        XLookupString((XKeyEvent *) ev, buf, 4, NULL, NULL);
+        NSEventModifierFlags modifierFlags = [self modifierFlagsForState: ev->xkey.state];
+        char buf[20] = {0};
+        KeySym keySym;
+        int strLen;
+
+        if (XFilterEvent(ev, None)) // XIM processing
+            break;
+
+        if (ev->type == KeyPress) {
+            strLen = Xutf8LookupString(window->_xic, (XKeyPressedEvent *) ev, buf, sizeof(buf) - 1, &keySym, NULL);
+            buf[strLen] = 0;
+        } else {
+            // Xutf8LookupString() may not be used with KeyRelease
+            strLen = XLookupString((XKeyEvent*) ev, buf, sizeof(buf) - 1, &keySym, NULL);
+            buf[strLen] = 0;
+        }
+
         id str = [[NSString alloc] initWithCString: buf
-                                          encoding: NSISOLatin1StringEncoding];
+                                          encoding: NSUTF8StringEncoding];
         NSPoint pos =
                 [window transformPoint: NSMakePoint(ev->xkey.x, ev->xkey.y)];
 
-        id strIg = [str lowercaseString];
-        if (ev->xkey.state) {
-            ev->xkey.state = 0;
-            XLookupString((XKeyEvent *) ev, buf, 4, NULL, NULL);
-            strIg = [[NSString alloc]
-                    initWithCString: buf
-                           encoding: NSISOLatin1StringEncoding];
-        }
+        uint16_t ucsCode = (uint16_t) X11KeySymToUCS(keySym); // All defined codes in the table fit into 16 bits
+        NSString* strIg = [NSString stringWithCharacters: &ucsCode length: 1];
 
         // If there's an app that uses constants from HIToolbox/Events.h (e.g.
         // kVK_ANSI_A), this gives it a chance to work.
         const int carbonKeyCode = x11ToCarbon[ev->xkey.keycode];
+
+        BOOL isARepeat = NO;
+
+        if (ev->type == KeyPress) {
+            isARepeat = _lastKeySym == keySym;
+            _lastKeySym = keySym;
+        } else {
+            _lastKeySym = 0;
+        }
 
         id event = [NSEvent keyEventWithType: ev->type == KeyPress ? NSKeyDown
                                                                    : NSKeyUp
@@ -919,7 +970,7 @@ static NSDictionary *modeInfoToDictionary(const XRRModeInfo *mi, int depth) {
                                      context: nil
                                   characters: str
                  charactersIgnoringModifiers: strIg
-                                   isARepeat: NO
+                                   isARepeat: isARepeat
                                      keyCode: carbonKeyCode];
 
         [self postEvent: event atStart: NO];
@@ -1084,6 +1135,7 @@ static NSDictionary *modeInfoToDictionary(const XRRModeInfo *mi, int depth) {
         break;
 
     case FocusIn:
+        NSLog(@"FocusIn");
         if ([delegate attachedSheet]) {
             [[delegate attachedSheet] makeKeyAndOrderFront: delegate];
             break;
@@ -1095,14 +1147,17 @@ static NSDictionary *modeInfoToDictionary(const XRRModeInfo *mi, int depth) {
         }
         [delegate platformWindowActivated: window displayIfNeeded: YES];
         lastFocusedWindow = delegate;
+        XSetICFocus(window->_xic);
         break;
 
     case FocusOut:
+        NSLog(@"FocusOut");
         [delegate platformWindowDeactivated: window
                     checkForAppDeactivation: NO];
         lastFocusedWindow = nil;
         if (_cursorGrabbed)
             [self grabMouse: NO];
+        XUnsetICFocus(window->_xic);
         break;
 
     case KeymapNotify:
@@ -1219,8 +1274,20 @@ static NSDictionary *modeInfoToDictionary(const XRRModeInfo *mi, int depth) {
     case ClientMessage:
         if (ev->xclient.format == 32 &&
             ev->xclient.data.l[0] ==
-                    XInternAtom(_display, "WM_DELETE_WINDOW", False))
-            [delegate platformWindowWillClose: window];
+                    XInternAtom(_display, "WM_DELETE_WINDOW", False)) {
+            NSLog(@"ClientMessage:WM_DELETE_WINDOW");
+            [[NSRunLoop currentRunLoop] cancelPerformSelector: @selector(platformWindowWillClose:)
+                                                       target: delegate
+                                                     argument: window];
+            [[NSRunLoop currentRunLoop] performSelector: @selector(platformWindowWillClose:)
+                                                 target: delegate
+                                               argument: window
+                                                  order: 0
+                                                  modes: @[
+                                                        NSDefaultRunLoopMode, NSModalPanelRunLoopMode,
+                                                        NSEventTrackingRunLoopMode
+                                                    ]];
+        }
         break;
 
     case MappingNotify:

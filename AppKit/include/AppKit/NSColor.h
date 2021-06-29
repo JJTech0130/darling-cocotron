@@ -21,6 +21,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <ApplicationServices/ApplicationServices.h>
 #import <Foundation/Foundation.h>
 
+APPKIT_EXPORT NSString *const NSSystemColorsDidChangeNotification;
+
 @class NSImage;
 @class NSPasteboard;
 
@@ -95,6 +97,14 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
                            green: (CGFloat) green
                             blue: (CGFloat) blue
                            alpha: (CGFloat) alpha;
++ (NSColor *) colorWithRed: (CGFloat) red
+                     green: (CGFloat) green
+                      blue: (CGFloat) blue
+                     alpha: (CGFloat) alpha;
++ (NSColor *) colorWithSRGBRed: (CGFloat) red
+                         green: (CGFloat) green
+                          blue: (CGFloat) blue
+                         alpha: (CGFloat) alpha;
 + (NSColor *) colorWithDeviceHue: (CGFloat) hue
                       saturation: (CGFloat) saturation
                       brightness: (CGFloat) brightness

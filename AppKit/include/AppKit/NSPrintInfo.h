@@ -30,9 +30,9 @@ typedef enum NSPrintingPaginationMode : int {
 
 } NSPrintingPaginationMode;
 
-const NSPrintingPaginationMode NSFitPagination;
-const NSPrintingPaginationMode NSAutoPagination;
-const NSPrintingPaginationMode NSClipPagination;
+APPKIT_EXPORT const NSPrintingPaginationMode NSFitPagination;
+APPKIT_EXPORT const NSPrintingPaginationMode NSAutoPagination;
+APPKIT_EXPORT const NSPrintingPaginationMode NSClipPagination;
 
 typedef enum {
     NSPortraitOrientation,
@@ -71,6 +71,8 @@ APPKIT_EXPORT NSString *const NSPrintHorizontallyCentered;
 APPKIT_EXPORT NSString *const NSPrintVerticallyCentered;
 
 APPKIT_EXPORT NSString *const NSPrintHeaderAndFooter;
+APPKIT_EXPORT NSString *const NSPrintMustCollate;
+APPKIT_EXPORT NSString *const NSPrintSelectionOnly;
 
 @interface NSPrintInfo : NSObject <NSCopying> {
     NSMutableDictionary *_attributes;
